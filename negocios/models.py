@@ -41,3 +41,24 @@ class Inmueble(models.Model):
 
     def __str__(self):
         return f"{self.get_tipo_display()} - {self.descripcion}"
+
+class Venta(models.Model):
+    ESTADO_ACTIVA = 'activa'
+    ESTADO_PAGADA = 'pagada'
+    ESTADO_CANCELADA = 'cancelada'
+    
+    ESTADO_CHOICES = [
+        (ESTADO_ACTIVA, 'Activa'),
+        (ESTADO_PAGADA, 'Pagada'),
+        (ESTADO_CANCELADA, 'Cancelada'),
+    ]
+    
+    inmueble = models.ForeignKey(Inmueble, on_delete=models.PROTECT, related_name='ventas')
+    comprador = models.ForeignKey(Persona, on_delete=models.PROTECT, related_name='compras')
+    fecha_venta = models.DateField()
+    precio_venta = models.DecimalField(max_digits=12, decimal_places=2)
+    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default=ESTADO_ACTIVA)
+    observaciones = models.TextField(blank=True)
+
+    def __str__(self):
+        return f"{self.inmueble} - {self.comprador.nombre} - {self.fecha_venta}"
