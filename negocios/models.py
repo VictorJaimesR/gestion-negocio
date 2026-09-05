@@ -62,3 +62,18 @@ class Venta(models.Model):
 
     def __str__(self):
         return f"{self.inmueble} - {self.comprador.nombre} - {self.fecha_venta}"
+
+
+class Financiamiento(models.Model):
+    venta = models.OneToOneField(Venta, on_delete=models.PROTECT, related_name='financiamiento')
+    pago_inicial = models.DecimalField(max_digits=12, decimal_places=2)
+    numero_cuotas = models.PositiveIntegerField()
+    valor_cuota = models.DecimalField(max_digits=12, decimal_places=2)
+    fecha_inicio = models.DateField()
+    
+    @property
+    def capital_financiado(self):
+        return self.venta.precio_venta - self.pago_inicial
+
+    def __str__(self):
+        return f"Financiamiento de {self.venta}"
