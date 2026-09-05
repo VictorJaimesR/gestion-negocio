@@ -70,10 +70,34 @@ class Financiamiento(models.Model):
     numero_cuotas = models.PositiveIntegerField()
     valor_cuota = models.DecimalField(max_digits=12, decimal_places=2)
     fecha_inicio = models.DateField()
-    
+
     @property
     def capital_financiado(self):
         return self.venta.precio_venta - self.pago_inicial
 
     def __str__(self):
         return f"Financiamiento de {self.venta}"
+
+class Cuota(models.Model):
+    ESTADO_PENDIENTE = 'pendiente'
+    ESTADO_PARCIALMENTE_PAGADA = 'parcialmente_pagada'
+    ESTADO_PAGADA = 'pagada'
+
+    ESTADO_CHOICES = [
+        (ESTADO_PENDIENTE, 'Pendiente'),
+        (ESTADO_PARCIALMENTE_PAGADA, 'Parcialmente Pagada'),
+        (ESTADO_PAGADA, 'Pagada'),
+    ]
+
+    financiamiento = models.ForeignKey(Financiamiento, on_delete=models.PROTECT, related_name='cuotas')
+    numero_cuota = models.PositiveIntegerField()
+    fecha_vencimiento = models.DateField()
+    valor_cuota = models.DecimalField(max_digits=12, decimal_places=2)
+    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default=ESTADO_PENDIENTE)
+
+    class Meta:
+        unique_together = ['financiamiento', 'numero_cuota']
+
+    def __str__(self):
+        return f"{self.financiamiento} - Cuota #{self.numero_cuota}"
+    
