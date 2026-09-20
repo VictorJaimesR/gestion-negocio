@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Cuota, Persona, Inmueble, Venta, Financiamiento, Arriendo, ObligacionArriendo, Honorarios 
+from .models import Cuota, Persona, Inmueble, Venta, Financiamiento, Arriendo, ObligacionArriendo, Honorarios, Movimiento
 
 admin.site.register(Persona)
 admin.site.register(Inmueble)
@@ -22,4 +22,7 @@ class ObligacionArriendoAdmin(admin.ModelAdmin):
 @admin.register(Honorarios)
 class HonorariosAdmin(admin.ModelAdmin):
     list_display = ['cliente', 'concepto', 'valor_honorario', 'fecha_vencimiento', 'estado']
-    
+
+@admin.register(Movimiento)
+class MovimientoAdmin(admin.ModelAdmin):
+    list_display = ['tipo', 'valor', 'fecha']

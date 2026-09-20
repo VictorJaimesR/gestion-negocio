@@ -1,5 +1,6 @@
 from django.db import models
 from dateutil.relativedelta import relativedelta
+from django.core.exceptions import ValidationError
 
 
 class Persona(models.Model):
@@ -186,3 +187,34 @@ class Honorarios(models.Model):
 
     def __str__(self):
         return f"Honorarios de {self.cliente} - {self.concepto}"
+
+
+class Movimiento(models.Model):
+    TIPO_PAGO_CUOTA = 'pago_cuota'
+    TIPO_PAGO_OBLIGACION = 'pago_arriendo'
+    TIPO_PAGO_HONORARIO = 'pago_honorario'
+
+    TIPO_CHOICES = [
+        (TIPO_PAGO_CUOTA, 'Pago de Cuota'),
+        (TIPO_PAGO_OBLIGACION, 'Pago de Arriendo'),
+        (TIPO_PAGO_HONORARIO, 'Pago de Honorario'),
+    ]
+
+    tipo = models.CharField(max_length=30, choices=TIPO_CHOICES)
+    cuota = models.ForeignKey(Cuota, on_delete=models.PROTECT, null=True, blank=True, related_name='movimientos')
+    obligacion_arriendo = models.ForeignKey(ObligacionArriendo, on_delete=models.PROTECT, null=True, blank=True, related_name='movimientos')
+    honorario = models.ForeignKey(Honorarios, on_delete=models.PROTECT, null=True, blank=True, related_name='movimientos')
+    fecha = models.DateField()
+    valor = models.DecimalField(max_digits=12, decimal_places=2)
+    observaciones = models.TextField(blank=True)
+
+    def clean(self):
+        relaciones_llenas = [self.cuota, self.obligacion_arriendo, self.honorario]
+        cantidades_llenas = sum(1 for r in relaciones_llenas if r is not None)
+
+        if cantidades_llenas != 1:
+            raise ValidationError("Debe asociar exactamente un tipo de pago: Cuota, Obligación de Arriendo o Honorario.")
+        
+    def __str__(self):
+        return f"{self.get_tipo_display()} - {self.valor} - {self.fecha}"
+    
