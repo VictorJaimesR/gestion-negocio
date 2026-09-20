@@ -5,6 +5,7 @@ admin.site.register(Persona)
 admin.site.register(Inmueble)
 admin.site.register(Venta)
 admin.site.register(Financiamiento)
-admin.site.register(Cuota)
 
-
+@admin.register(Cuota)
+class CuotaAdmin(admin.ModelAdmin):
+    list_display = ['financiamiento', 'numero_cuota', 'fecha_vencimiento', 'valor_cuota', 'estado']

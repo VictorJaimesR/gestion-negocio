@@ -1,4 +1,6 @@
 from django.db import models
+from dateutil.relativedelta import relativedelta
+
 
 class Persona(models.Model):
     nombre = models.CharField(max_length=100)
@@ -74,6 +76,22 @@ class Financiamiento(models.Model):
     @property
     def capital_financiado(self):
         return self.venta.precio_venta - self.pago_inicial
+
+    def generar_cuotas(self):
+        for i in range(1, self.numero_cuotas + 1):
+            fecha_cuota = self.fecha_inicio + relativedelta(months=i-1)
+            Cuota.objects.create(
+                financiamiento=self,
+                numero_cuota=i,
+                fecha_vencimiento=fecha_cuota,
+                valor_cuota=self.valor_cuota
+            )
+
+    def save(self, *args, **kwargs):
+        es_nuevo = self.pk is None
+        super().save(*args, **kwargs)
+        if es_nuevo:
+            self.generar_cuotas() 
 
     def __str__(self):
         return f"Financiamiento de {self.venta}"
