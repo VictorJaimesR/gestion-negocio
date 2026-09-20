@@ -118,4 +118,24 @@ class Cuota(models.Model):
 
     def __str__(self):
         return f"{self.financiamiento} - Cuota #{self.numero_cuota}"
-    
+
+class Arriendo(models.Model):
+    ESTADO_ACTIVO = 'activo'
+    ESTADO_FINALIZADO = 'finalizado'
+
+    ESTADO_CHOICES = [
+        (ESTADO_ACTIVO, 'Activo'),
+        (ESTADO_FINALIZADO, 'Finalizado'),
+    ]
+
+    inmueble = models.ForeignKey(Inmueble, on_delete=models.PROTECT, related_name='arriendos')
+    arrendatario = models.ForeignKey(Persona, on_delete=models.PROTECT, related_name='contratos_arrendados')
+    canon_mensual = models.DecimalField(max_digits=12, decimal_places=2)
+    fecha_inicio = models.DateField()
+    fecha_fin = models.DateField(null=True, blank=True)
+    dia_pago = models.PositiveIntegerField()
+    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default=ESTADO_ACTIVO)
+    observaciones = models.TextField(blank=True)
+
+def __str__(self):
+        return f"Arriendo de {self.inmueble} a {self.arrendatario.nombre}"
