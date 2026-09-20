@@ -139,3 +139,50 @@ class Arriendo(models.Model):
 
 def __str__(self):
         return f"Arriendo de {self.inmueble} a {self.arrendatario.nombre}"
+
+class ObligacionArriendo(models.Model):
+    ESTADO_PENDIENTE = 'pendiente'
+    ESTADO_PARCIALMENTE_PAGADA = 'parcialmente_pagada'
+    ESTADO_PAGADA = 'pagada'
+    ESTADO_VENCIDA = 'vencida'
+
+    ESTADO_CHOICES = [
+        (ESTADO_PENDIENTE, 'Pendiente'),
+        (ESTADO_PARCIALMENTE_PAGADA, 'Parcialmente Pagada'),
+        (ESTADO_PAGADA, 'Pagada'),
+        (ESTADO_VENCIDA, 'Vencida'),
+    ]
+
+    arriendo = models.ForeignKey(Arriendo, on_delete=models.PROTECT, related_name='obligaciones')
+    periodo = models.DateField() 
+    fecha_vencimiento = models.DateField()
+    valor_obligacion = models.DecimalField(max_digits=12, decimal_places=2)
+    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default=ESTADO_PENDIENTE)
+
+    class Meta:
+        unique_together = ['arriendo', 'periodo']
+
+    def __str__(self):
+        return f"{self.arriendo} - Obligación del {self.fecha_vencimiento}"
+
+class Honorarios(models.Model):
+    ESTADO_PENDIENTE = 'pendiente'
+    ESTADO_PARCIALMENTE_PAGADA = 'parcialmente_pagada'
+    ESTADO_PAGADA = 'pagada'
+
+    ESTADO_CHOICES = [
+        (ESTADO_PENDIENTE, 'Pendiente'),
+        (ESTADO_PARCIALMENTE_PAGADA, 'Parcialmente Pagada'),
+        (ESTADO_PAGADA, 'Pagada'),
+    ]
+
+    cliente = models.ForeignKey(Persona, on_delete=models.PROTECT, related_name='honorarios')
+    concepto = models.CharField(max_length=200)
+    fecha_emision = models.DateField()
+    valor_honorario = models.DecimalField(max_digits=12, decimal_places=2)
+    fecha_vencimiento = models.DateField()
+    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default=ESTADO_PENDIENTE)
+    observaciones = models.TextField(blank=True)
+
+    def __str__(self):
+        return f"Honorarios de {self.cliente} - {self.concepto}"
