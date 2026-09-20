@@ -1,6 +1,8 @@
 from django.db import models
 from dateutil.relativedelta import relativedelta
 from django.core.exceptions import ValidationError
+import calendar
+
 
 
 class Persona(models.Model):
@@ -138,8 +140,35 @@ class Arriendo(models.Model):
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default=ESTADO_ACTIVO)
     observaciones = models.TextField(blank=True)
 
-def __str__(self):
+    def generar_obligaciones(self):
+        if self.fecha_fin:
+            diferencia = relativedelta(self.fecha_fin, self.fecha_inicio)
+            numero_meses = diferencia.years * 12 + diferencia.months + 1
+        else:
+            numero_meses = 1
+
+        for i in range(numero_meses):
+            fecha_periodo = self.fecha_inicio + relativedelta(months=i)
+            ultimo_dia = calendar.monthrange(fecha_periodo.year, fecha_periodo.month)[1]
+            dia_vencimiento = min(self.dia_pago, ultimo_dia)
+
+            ObligacionArriendo.objects.create(
+                arriendo=self,
+                periodo=fecha_periodo.replace(day=1),
+                fecha_vencimiento=fecha_periodo.replace(day=dia_vencimiento),
+                valor_obligacion=self.canon_mensual
+            )
+
+    def save(self, *args, **kwargs):
+        es_nuevo = self.pk is None
+        super().save(*args, **kwargs)
+        if es_nuevo:
+            self.generar_obligaciones()
+        
+
+    def __str__(self):
         return f"Arriendo de {self.inmueble} a {self.arrendatario.nombre}"
+
 
 class ObligacionArriendo(models.Model):
     ESTADO_PENDIENTE = 'pendiente'
@@ -166,7 +195,7 @@ class ObligacionArriendo(models.Model):
     def __str__(self):
         return f"{self.arriendo} - Obligación del {self.fecha_vencimiento}"
 
-class Honorarios(models.Model):
+class Honorario(models.Model):
     ESTADO_PENDIENTE = 'pendiente'
     ESTADO_PARCIALMENTE_PAGADA = 'parcialmente_pagada'
     ESTADO_PAGADA = 'pagada'
@@ -203,7 +232,7 @@ class Movimiento(models.Model):
     tipo = models.CharField(max_length=30, choices=TIPO_CHOICES)
     cuota = models.ForeignKey(Cuota, on_delete=models.PROTECT, null=True, blank=True, related_name='movimientos')
     obligacion_arriendo = models.ForeignKey(ObligacionArriendo, on_delete=models.PROTECT, null=True, blank=True, related_name='movimientos')
-    honorario = models.ForeignKey(Honorarios, on_delete=models.PROTECT, null=True, blank=True, related_name='movimientos')
+    honorario = models.ForeignKey(Honorario, on_delete=models.PROTECT, null=True, blank=True, related_name='movimientos')
     fecha = models.DateField()
     valor = models.DecimalField(max_digits=12, decimal_places=2)
     observaciones = models.TextField(blank=True)
