@@ -2,6 +2,8 @@ from django.db import models
 from dateutil.relativedelta import relativedelta
 from django.core.exceptions import ValidationError
 import calendar
+from django.db.models import Sum
+
 
 
 
@@ -119,6 +121,17 @@ class Cuota(models.Model):
     class Meta:
         unique_together = ['financiamiento', 'numero_cuota']
 
+    def actualizar_estado(self):
+        total_pagado = self.movimientos.aggregate(total=Sum('valor'))['total'] or 0
+        if total_pagado <= 0:
+            self.estado = self.ESTADO_PENDIENTE
+        elif total_pagado < self.valor_cuota:
+            self.estado = self.ESTADO_PARCIALMENTE_PAGADA
+        else:
+            self.estado = self.ESTADO_PAGADA
+
+        self.save()
+
     def __str__(self):
         return f"{self.financiamiento} - Cuota #{self.numero_cuota}"
 
@@ -192,6 +205,17 @@ class ObligacionArriendo(models.Model):
     class Meta:
         unique_together = ['arriendo', 'periodo']
 
+    def actualizar_estado(self):
+        total_pagado = self.movimientos.aggregate(total=Sum('valor'))['total'] or 0
+        if total_pagado <= 0:
+            self.estado = self.ESTADO_PENDIENTE
+        elif total_pagado < self.valor_obligacion:
+            self.estado = self.ESTADO_PARCIALMENTE_PAGADA
+        else:
+            self.estado = self.ESTADO_PAGADA
+
+        self.save()
+
     def __str__(self):
         return f"{self.arriendo} - Obligación del {self.fecha_vencimiento}"
 
@@ -213,6 +237,17 @@ class Honorario(models.Model):
     fecha_vencimiento = models.DateField()
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default=ESTADO_PENDIENTE)
     observaciones = models.TextField(blank=True)
+
+    def actualizar_estado(self):
+        total_pagado = self.movimientos.aggregate(total=Sum('valor'))['total'] or 0
+        if total_pagado <= 0:
+            self.estado = self.ESTADO_PENDIENTE
+        elif total_pagado < self.valor_honorario:
+            self.estado = self.ESTADO_PARCIALMENTE_PAGADA
+        else:
+            self.estado = self.ESTADO_PAGADA
+
+        self.save()
 
     def __str__(self):
         return f"Honorarios de {self.cliente} - {self.concepto}"
@@ -243,6 +278,16 @@ class Movimiento(models.Model):
 
         if cantidades_llenas != 1:
             raise ValidationError("Debe asociar exactamente un tipo de pago: Cuota, Obligación de Arriendo o Honorario.")
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if self.cuota:
+            self.cuota.actualizar_estado()
+        elif self.obligacion_arriendo:
+            self.obligacion_arriendo.arriendo.actualizar_estado()
+        elif self.honorario:
+            self.honorario.actualizar_estado()
+        
         
     def __str__(self):
         return f"{self.get_tipo_display()} - {self.valor} - {self.fecha}"
