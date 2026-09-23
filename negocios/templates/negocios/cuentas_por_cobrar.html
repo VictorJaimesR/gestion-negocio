@@ -1,0 +1,19 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Cuentas por Cobrar</title>
+</head>
+<body>
+    <h1>Cuentas por Cobrar</h1>
+
+    <ul>
+        <li>Total ventas pendientes: ${{ total_ventas|intcomma }}</li>
+        <li>Total arriendos pendientes: ${{ total_arriendos|intcomma }}</li>
+        <li>Total honorarios pendientes: ${{ total_honorarios|intcomma }}</li>
+    </ul>
+
+    <h2>Total general: ${{ total_general|intcomma }}</h2>
+</body>
+</html>
