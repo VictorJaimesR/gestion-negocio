@@ -1,7 +1,10 @@
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
 from rest_framework import viewsets
+from django.db.models import Sum
 from .models import Persona, Inmueble, Venta, Financiamiento, Cuota, Arriendo, ObligacionArriendo, Honorario, Movimiento
-
 from .serializers import PersonaSerializer, InmuebleSerializer, VentaSerializer, FinanciamientoSerializer, CuotaSerializer, ArriendoSerializer, ObligacionArriendoSerializer, HonorarioSerializer, MovimientoSerializer
+
 
 class PersonaViewSet(viewsets.ModelViewSet):
     queryset = Persona.objects.all()
@@ -39,4 +42,25 @@ class MovimientoViewSet(viewsets.ModelViewSet):
     queryset = Movimiento.objects.all()
     serializer_class = MovimientoSerializer
 
+@api_view(['GET'])
+def cuentas_por_cobrar(request):
+    total_ventas = Cuota.objects.filter(
+        estado__in = ['pendiente', 'parcialmente_pagada']
+    ).aggregate(total=Sum('valor_cuota'))['total'] or 0
 
+    total_arriendos = ObligacionArriendo.objects.filter(
+        estado__in = ['pendiente', 'parcialmente_pagada']
+    ).aggregate(total=Sum('valor_obligacion'))['total'] or 0
+
+    total_honorarios = Honorario.objects.filter(
+        estado__in = ['pendiente', 'parcialmente_pagada']
+    ).aggregate(total=Sum('valor_honorario'))['total'] or 0
+
+    data = {
+
+        'total_ventas': total_ventas,
+        'total_arriendos': total_arriendos,
+        'total_honorarios': total_honorarios,
+        'total_general': total_ventas + total_arriendos + total_honorarios,
+    }
+    return Response(data)
