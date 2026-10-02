@@ -2,7 +2,7 @@ from django.db import models
 from dateutil.relativedelta import relativedelta
 from django.core.exceptions import ValidationError
 import calendar
-from django.db.models import Sum
+from django.db.models import Q, Sum
 
 
 
@@ -43,7 +43,7 @@ class Inmueble(models.Model):
     ]
 
     tipo = models.CharField(max_length=20, choices=TIPO_CHOICES)
-    descripcion = models.TextField()
+    descripcion = models.TextField(unique=True)
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default=ESTADO_DISPONIBLE)
 
     def __str__(self):
@@ -66,6 +66,15 @@ class Venta(models.Model):
     precio_venta = models.DecimalField(max_digits=12, decimal_places=2)
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default=ESTADO_ACTIVA)
     observaciones = models.TextField(blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['inmueble'],
+                condition=Q(estado__in=['activa', 'pagada']),
+                name='una_venta_activa_por_inmueble',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.inmueble} - {self.comprador.nombre} - {self.fecha_venta}"
@@ -152,6 +161,15 @@ class Arriendo(models.Model):
     dia_pago = models.PositiveIntegerField()
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default=ESTADO_ACTIVO)
     observaciones = models.TextField(blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['inmueble'],
+                condition=Q(estado='activo'),
+                name='un_arriendo_activo_por_inmueble',
+            ),
+        ]
 
     def generar_obligaciones(self):
         if self.fecha_fin:
