@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.db import transaction
 from .models import Cuota, Financiamiento, Inmueble, Persona, Venta, Arriendo, ObligacionArriendo, Honorario, Movimiento
 
 class PersonaSerializer(serializers.ModelSerializer):
@@ -30,14 +31,16 @@ class CuotaSerializer(serializers.ModelSerializer):
 class FinanciamientoSerializer(serializers.ModelSerializer):
     cuotas = CuotaSerializer(many=True, read_only=True)
     capital_financiado = serializers.ReadOnlyField()
+    venta = serializers.PrimaryKeyRelatedField(read_only=True)
+    fecha_inicio = serializers.DateField(required=False)
     class Meta:
         model = Financiamiento
-        fields = ['id', 'venta', 'pago_inicial', 'numero_cuotas','valor_cuota', 'capital_financiado', 'cuotas']
+        fields = ['id', 'venta', 'pago_inicial', 'numero_cuotas', 'valor_cuota', 'fecha_inicio', 'capital_financiado', 'cuotas']
 
 class VentaSerializer(serializers.ModelSerializer):
     inmueble = serializers.PrimaryKeyRelatedField(queryset=Inmueble.objects.all())
     comprador = serializers.PrimaryKeyRelatedField(queryset=Persona.objects.all())
-    financiamiento = FinanciamientoSerializer(read_only=True)
+    financiamiento = FinanciamientoSerializer(required=False, allow_null=True)
 
     class Meta:
         model = Venta
@@ -55,6 +58,53 @@ class VentaSerializer(serializers.ModelSerializer):
                 'Este inmueble ya tiene una venta activa o pagada.'
             )
         return inmueble
+
+    def validate(self, attrs):
+        financiamiento = attrs.get('financiamiento')
+        if financiamiento:
+            pago_inicial = financiamiento['pago_inicial']
+            numero_cuotas = financiamiento['numero_cuotas']
+            valor_cuota = financiamiento['valor_cuota']
+            precio_venta = attrs.get(
+                'precio_venta',
+                self.instance.precio_venta if self.instance else None,
+            )
+            if pago_inicial + (numero_cuotas * valor_cuota) < precio_venta:
+                raise serializers.ValidationError({
+                    'financiamiento': (
+                        'El pago inicial más el valor de las cuotas debe cubrir '
+                        'el precio de venta.'
+                    ),
+                })
+        return attrs
+
+    @transaction.atomic
+    def create(self, validated_data):
+        financiamiento_data = validated_data.pop('financiamiento', None)
+        venta = Venta.objects.create(**validated_data)
+        if financiamiento_data:
+            financiamiento_data.setdefault('fecha_inicio', venta.fecha_venta)
+            Financiamiento.objects.create(venta=venta, **financiamiento_data)
+        return venta
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        financiamiento_data = validated_data.pop('financiamiento', serializers.empty)
+        venta = super().update(instance, validated_data)
+        if financiamiento_data is not serializers.empty:
+            if financiamiento_data is None:
+                Financiamiento.objects.filter(venta=venta).delete()
+            else:
+                financiamiento_data.setdefault('fecha_inicio', venta.fecha_venta)
+                financiamiento, creado = Financiamiento.objects.get_or_create(
+                    venta=venta,
+                    defaults=financiamiento_data,
+                )
+                if not creado:
+                    for campo, valor in financiamiento_data.items():
+                        setattr(financiamiento, campo, valor)
+                    financiamiento.save()
+        return venta
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -120,6 +170,3 @@ class MovimientoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Movimiento
         fields = '__all__'
-
-
-
