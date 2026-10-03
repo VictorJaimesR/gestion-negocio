@@ -167,6 +167,31 @@ class HonorarioSerializer(serializers.ModelSerializer):
         return data
 
 class MovimientoSerializer(serializers.ModelSerializer):
+    cuota = serializers.StringRelatedField()
+    obligacion_arriendo = serializers.StringRelatedField()
+    honorario = serializers.StringRelatedField()
+
+    cuota_id = serializers.PrimaryKeyRelatedField(
+        queryset=Cuota.objects.all(), source='cuota', write_only=True, required=False, allow_null=True
+    )
+    obligacion_arriendo_id = serializers.PrimaryKeyRelatedField(
+        queryset=ObligacionArriendo.objects.all(), source='obligacion_arriendo', write_only=True, required=False, allow_null=True
+    )
+    honorario_id = serializers.PrimaryKeyRelatedField(
+        queryset=Honorario.objects.all(), source='honorario', write_only=True, required=False, allow_null=True
+    )
+
     class Meta:
         model = Movimiento
-        fields = '__all__'
+        fields = ['id', 'tipo', 'cuota', 'obligacion_arriendo', 'honorario',
+                   'cuota_id', 'obligacion_arriendo_id', 'honorario_id',
+                   'fecha', 'valor', 'observaciones']
+
+    def validate(self, datos):
+        relaciones = [datos.get('cuota'), datos.get('obligacion_arriendo'), datos.get('honorario')]
+        cantidad_llenas = sum(1 for r in relaciones if r is not None)
+        if cantidad_llenas != 1:
+            raise serializers.ValidationError(
+                'Debe asociar exactamente una cuota, obligación de arriendo, u honorario.'
+            )
+        return datos

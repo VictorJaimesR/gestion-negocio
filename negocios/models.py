@@ -302,7 +302,7 @@ class Movimiento(models.Model):
         if self.cuota:
             self.cuota.actualizar_estado()
         elif self.obligacion_arriendo:
-            self.obligacion_arriendo.arriendo.actualizar_estado()
+            self.obligacion_arriendo.actualizar_estado()
         elif self.honorario:
             self.honorario.actualizar_estado()
         
