@@ -101,6 +101,14 @@ class Financiamiento(models.Model):
                 valor_cuota=self.valor_cuota
             )
 
+    def actualizar_estado_venta(self):
+        if self.cuotas.exists() and not self.cuotas.exclude(
+            estado=Cuota.ESTADO_PAGADA,
+        ).exists():
+            if self.venta.estado != Venta.ESTADO_PAGADA:
+                self.venta.estado = Venta.ESTADO_PAGADA
+                self.venta.save(update_fields=['estado'])
+
     def save(self, *args, **kwargs):
         es_nuevo = self.pk is None
         super().save(*args, **kwargs)
@@ -126,6 +134,7 @@ class Cuota(models.Model):
     fecha_vencimiento = models.DateField()
     valor_cuota = models.DecimalField(max_digits=12, decimal_places=2)
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default=ESTADO_PENDIENTE)
+    notificado = models.BooleanField(default=False)
 
     class Meta:
         unique_together = ['financiamiento', 'numero_cuota']
@@ -140,6 +149,7 @@ class Cuota(models.Model):
             self.estado = self.ESTADO_PAGADA
 
         self.save()
+        self.financiamiento.actualizar_estado_venta()
 
     def __str__(self):
         return f"{self.financiamiento} - Cuota #{self.numero_cuota}"
@@ -171,12 +181,21 @@ class Arriendo(models.Model):
             ),
         ]
 
-    def generar_obligaciones(self):
+    def calcular_numero_meses(self):
         if self.fecha_fin:
             diferencia = relativedelta(self.fecha_fin, self.fecha_inicio)
-            numero_meses = diferencia.years * 12 + diferencia.months + 1
+            numero_meses = (
+                diferencia.years * 12
+                + diferencia.months
+                + (1 if diferencia.days > 0 else 0)
+            )
+            numero_meses = max(1, numero_meses)
         else:
             numero_meses = 1
+        return numero_meses
+
+    def generar_obligaciones(self):
+        numero_meses = self.calcular_numero_meses()
 
         for i in range(numero_meses):
             fecha_periodo = self.fecha_inicio + relativedelta(months=i)
@@ -190,11 +209,45 @@ class Arriendo(models.Model):
                 valor_obligacion=self.canon_mensual
             )
 
+    def sincronizar_obligaciones(self):
+        periodos_existentes = set(
+            self.obligaciones.values_list('periodo', flat=True)
+        )
+        numero_meses = self.calcular_numero_meses()
+
+        for i in range(numero_meses):
+            fecha_periodo = self.fecha_inicio + relativedelta(months=i)
+            periodo = fecha_periodo.replace(day=1)
+            if periodo in periodos_existentes:
+                continue
+
+            ultimo_dia = calendar.monthrange(
+                fecha_periodo.year,
+                fecha_periodo.month,
+            )[1]
+            dia_vencimiento = min(self.dia_pago, ultimo_dia)
+            ObligacionArriendo.objects.create(
+                arriendo=self,
+                periodo=periodo,
+                fecha_vencimiento=fecha_periodo.replace(day=dia_vencimiento),
+                valor_obligacion=self.canon_mensual,
+            )
+
+    def actualizar_estado_por_obligaciones(self):
+        if self.obligaciones.exists() and not self.obligaciones.exclude(
+            estado=ObligacionArriendo.ESTADO_PAGADA,
+        ).exists():
+            if self.estado != self.ESTADO_FINALIZADO:
+                self.estado = self.ESTADO_FINALIZADO
+                self.save(update_fields=['estado'])
+
     def save(self, *args, **kwargs):
         es_nuevo = self.pk is None
         super().save(*args, **kwargs)
         if es_nuevo:
             self.generar_obligaciones()
+        else:
+            self.sincronizar_obligaciones()
         
 
     def __str__(self):
@@ -219,6 +272,7 @@ class ObligacionArriendo(models.Model):
     fecha_vencimiento = models.DateField()
     valor_obligacion = models.DecimalField(max_digits=12, decimal_places=2)
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default=ESTADO_PENDIENTE)
+    notificado = models.BooleanField(default=False)
 
     class Meta:
         unique_together = ['arriendo', 'periodo']
@@ -233,6 +287,7 @@ class ObligacionArriendo(models.Model):
             self.estado = self.ESTADO_PAGADA
 
         self.save()
+        self.arriendo.actualizar_estado_por_obligaciones()
 
     def __str__(self):
         return f"{self.arriendo} - Obligación del {self.fecha_vencimiento}"
@@ -254,6 +309,7 @@ class Honorario(models.Model):
     valor_honorario = models.DecimalField(max_digits=12, decimal_places=2)
     fecha_vencimiento = models.DateField()
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default=ESTADO_PENDIENTE)
+    notificado = models.BooleanField(default=False)
     observaciones = models.TextField(blank=True)
 
     def actualizar_estado(self):

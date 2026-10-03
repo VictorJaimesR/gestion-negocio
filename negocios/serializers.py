@@ -23,7 +23,14 @@ class InmuebleSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('descripcion no permitida')
         return descripcion
 
+class MovimientoResumenSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Movimiento
+        fields = ['id', 'fecha', 'valor', 'observaciones']
+
 class CuotaSerializer(serializers.ModelSerializer):
+    movimientos = MovimientoResumenSerializer(many=True, read_only=True)
+
     class Meta:
         model = Cuota
         fields = '__all__'
@@ -115,6 +122,8 @@ class VentaSerializer(serializers.ModelSerializer):
         return data
 
 class ObligacionArriendoSerializer(serializers.ModelSerializer):
+    movimientos = MovimientoResumenSerializer(many=True, read_only=True)
+
     class Meta:
         model = ObligacionArriendo
         fields = '__all__'
@@ -155,6 +164,7 @@ class ArriendoSerializer(serializers.ModelSerializer):
 
 class HonorarioSerializer(serializers.ModelSerializer):
     cliente = serializers.PrimaryKeyRelatedField(queryset=Persona.objects.all())
+    movimientos = MovimientoResumenSerializer(many=True, read_only=True)
 
     class Meta:
         model = Honorario
