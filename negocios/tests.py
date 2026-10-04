@@ -2,8 +2,10 @@ from datetime import date
 from decimal import Decimal
 
 from django.test import TestCase
+from django.contrib.auth import get_user_model
+from rest_framework.test import APIClient
 
-from .models import Arriendo, Financiamiento, Inmueble, Persona, Venta
+from .models import Arriendo, Financiamiento, Honorario, Inmueble, Movimiento, Persona, Venta
 
 
 class GeneracionPagosTest(TestCase):
@@ -75,3 +77,31 @@ class GeneracionPagosTest(TestCase):
         )
 
         self.assertEqual(financiamiento.cuotas.count(), 4)
+
+    def test_honorario_pagado_se_elimina_con_sus_movimientos(self):
+        honorario = Honorario.objects.create(
+            cliente=self.persona,
+            concepto='Servicio de prueba',
+            fecha_emision=date(2026, 10, 3),
+            valor_honorario=Decimal('500000'),
+            fecha_vencimiento=date(2026, 10, 3),
+        )
+        Movimiento.objects.create(
+            tipo=Movimiento.TIPO_PAGO_HONORARIO,
+            honorario=honorario,
+            fecha=date(2026, 10, 3),
+            valor=Decimal('500000'),
+        )
+        self.assertEqual(honorario.estado, Honorario.ESTADO_PAGADA)
+
+        usuario = get_user_model().objects.create_user(
+            username='usuario-prueba',
+            password='clave-prueba',
+        )
+        cliente_api = APIClient()
+        cliente_api.force_authenticate(user=usuario)
+        respuesta = cliente_api.delete(f'/api/honorarios/{honorario.id}/')
+
+        self.assertEqual(respuesta.status_code, 204)
+        self.assertFalse(Honorario.objects.filter(pk=honorario.id).exists())
+        self.assertFalse(Movimiento.objects.filter(honorario_id=honorario.id).exists())

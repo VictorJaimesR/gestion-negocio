@@ -129,6 +129,13 @@ class HonorarioViewSet(EliminacionProtegidaMixin, viewsets.ModelViewSet):
     queryset = Honorario.objects.all()
     serializer_class = HonorarioSerializer
 
+    def perform_destroy(self, instance):
+        if instance.estado != Honorario.ESTADO_PAGADA:
+            raise ValidationError({'detail': 'Solo se puede eliminar un honorario pagado.'})
+        with transaction.atomic():
+            Movimiento.objects.filter(honorario=instance).delete()
+            eliminar_instancia(instance, 'No se puede eliminar el honorario porque tiene información relacionada.')
+
 class MovimientoViewSet(EliminacionProtegidaMixin, viewsets.ModelViewSet):
     queryset = Movimiento.objects.all()
     serializer_class = MovimientoSerializer
