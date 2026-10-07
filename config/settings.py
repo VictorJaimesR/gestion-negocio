@@ -159,7 +159,12 @@ EMAIL_USE_SSL = True
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 
 CORS_ALLOWED_ORIGINS = [
-    'http://localhost:5173',
+    origin.strip()
+    for origin in os.environ.get(
+        'CORS_ALLOWED_ORIGINS',
+        'http://localhost:5173'
+    ).split(',')
+    if origin.strip()
 ]
 
 REST_FRAMEWORK = {
