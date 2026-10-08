@@ -4,7 +4,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework import viewsets
 from django.db.models.deletion import ProtectedError
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Prefetch, Sum
 from .models import Persona, Inmueble, Venta, Financiamiento, Cuota, Arriendo, ObligacionArriendo, Honorario, Movimiento
 from .serializers import PersonaSerializer, InmuebleSerializer, VentaSerializer, FinanciamientoSerializer, CuotaSerializer, ArriendoSerializer, ObligacionArriendoSerializer, HonorarioSerializer, MovimientoSerializer
 
@@ -29,7 +29,16 @@ class InmuebleViewSet(EliminacionProtegidaMixin, viewsets.ModelViewSet):
     serializer_class = InmuebleSerializer   
 
 class VentaViewSet(EliminacionProtegidaMixin, viewsets.ModelViewSet):
-    queryset = Venta.objects.all()
+    queryset = Venta.objects.select_related(
+        'inmueble',
+        'comprador',
+        'financiamiento',
+    ).prefetch_related(
+        Prefetch(
+            'financiamiento__cuotas',
+            queryset=Cuota.objects.prefetch_related('movimientos'),
+        ),
+    )
     serializer_class = VentaSerializer
 
     def perform_create(self, serializer):
@@ -51,12 +60,16 @@ class VentaViewSet(EliminacionProtegidaMixin, viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         if instance.estado not in [Venta.ESTADO_PAGADA, Venta.ESTADO_CANCELADA]:
             raise ValidationError({'detail': 'Solo se puede eliminar una venta pagada o cancelada.'})
+        financiamiento = getattr(instance, 'financiamiento', None)
+        if financiamiento and Movimiento.objects.filter(
+            cuota__financiamiento=financiamiento,
+        ).exists():
+            raise ValidationError({
+                'detail': 'No se puede eliminar la venta porque tiene movimientos registrados.'
+            })
         inmueble = instance.inmueble
         with transaction.atomic():
-            financiamiento = getattr(instance, 'financiamiento', None)
             if financiamiento:
-                cuotas = list(financiamiento.cuotas.all())
-                Movimiento.objects.filter(cuota__in=cuotas).delete()
                 Cuota.objects.filter(financiamiento=financiamiento).delete()
                 financiamiento.delete()
             eliminar_instancia(instance, 'No se puede eliminar la venta porque tiene información relacionada.')
@@ -76,7 +89,15 @@ class CuotaViewSet(EliminacionProtegidaMixin, viewsets.ModelViewSet):
     serializer_class = CuotaSerializer
 
 class ArriendoViewSet(EliminacionProtegidaMixin, viewsets.ModelViewSet):
-    queryset = Arriendo.objects.all()
+    queryset = Arriendo.objects.select_related(
+        'inmueble',
+        'arrendatario',
+    ).prefetch_related(
+        Prefetch(
+            'obligaciones',
+            queryset=ObligacionArriendo.objects.prefetch_related('movimientos'),
+        ),
+    )
     serializer_class = ArriendoSerializer
 
     def perform_create(self, serializer):
@@ -108,10 +129,14 @@ class ArriendoViewSet(EliminacionProtegidaMixin, viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         if instance.estado != Arriendo.ESTADO_FINALIZADO:
             raise ValidationError({'detail': 'Solo se puede eliminar un arriendo finalizado.'})
+        if Movimiento.objects.filter(
+            obligacion_arriendo__arriendo=instance,
+        ).exists():
+            raise ValidationError({
+                'detail': 'No se puede eliminar el arriendo porque tiene movimientos registrados.'
+            })
         inmueble = instance.inmueble
         with transaction.atomic():
-            obligaciones = list(instance.obligaciones.all())
-            Movimiento.objects.filter(obligacion_arriendo__in=obligaciones).delete()
             ObligacionArriendo.objects.filter(arriendo=instance).delete()
             eliminar_instancia(instance, 'No se puede eliminar el arriendo porque tiene información relacionada.')
         if not Arriendo.objects.filter(
@@ -126,18 +151,27 @@ class ObligacionArriendoViewSet(EliminacionProtegidaMixin, viewsets.ModelViewSet
     serializer_class = ObligacionArriendoSerializer 
 
 class HonorarioViewSet(EliminacionProtegidaMixin, viewsets.ModelViewSet):
-    queryset = Honorario.objects.all()
+    queryset = Honorario.objects.select_related('cliente').prefetch_related('movimientos')
     serializer_class = HonorarioSerializer
 
     def perform_destroy(self, instance):
         if instance.estado != Honorario.ESTADO_PAGADA:
             raise ValidationError({'detail': 'Solo se puede eliminar un honorario pagado.'})
+        if Movimiento.objects.filter(honorario=instance).exists():
+            raise ValidationError({
+                'detail': 'No se puede eliminar el honorario porque tiene movimientos registrados.'
+            })
         with transaction.atomic():
-            Movimiento.objects.filter(honorario=instance).delete()
             eliminar_instancia(instance, 'No se puede eliminar el honorario porque tiene información relacionada.')
 
 class MovimientoViewSet(EliminacionProtegidaMixin, viewsets.ModelViewSet):
-    queryset = Movimiento.objects.all()
+    queryset = Movimiento.objects.select_related(
+        'cuota__financiamiento__venta__inmueble',
+        'cuota__financiamiento__venta__comprador',
+        'obligacion_arriendo__arriendo__inmueble',
+        'obligacion_arriendo__arriendo__arrendatario',
+        'honorario__cliente',
+    )
     serializer_class = MovimientoSerializer
 
 @api_view(['GET'])
