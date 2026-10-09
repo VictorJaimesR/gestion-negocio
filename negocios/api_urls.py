@@ -1,7 +1,7 @@
 from django.urls import path
 from rest_framework.routers import DefaultRouter
+from rest_framework.authtoken.views import obtain_auth_token
 from .api_views import PersonaViewSet, InmuebleViewSet, VentaViewSet, FinanciamientoViewSet, CuotaViewSet, ArriendoViewSet, ObligacionArriendoViewSet, HonorarioViewSet, MovimientoViewSet, cuentas_por_cobrar
-from .login_instrumentation import InstrumentedObtainAuthToken
 
 router = DefaultRouter()
 router.register('personas', PersonaViewSet)
@@ -16,5 +16,5 @@ router.register('movimientos', MovimientoViewSet)
 
 urlpatterns = router.urls + [
     path('cuentas-por-cobrar/', cuentas_por_cobrar),
-    path('login/', InstrumentedObtainAuthToken.as_view()),
+    path('login/', obtain_auth_token),
 ]
