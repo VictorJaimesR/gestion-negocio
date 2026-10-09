@@ -49,7 +49,7 @@ class InstrumentedObtainAuthToken(ObtainAuthToken):
             hash_cpu_ms = (time.process_time() - hash_cpu_started) * 1000
 
         if not authenticated or not user.is_active:
-            logger.info(
+            logger.warning(
                 'login_timing result=failed lookup_ms=%.2f lookup_cpu_ms=%.2f '
                 'hash_ms=%s hash_cpu_ms=%s total_ms=%.2f total_cpu_ms=%.2f',
                 lookup_ms,
@@ -69,7 +69,7 @@ class InstrumentedObtainAuthToken(ObtainAuthToken):
         token, created = Token.objects.get_or_create(user=user)
         token_ms = (time.perf_counter() - token_started) * 1000
         token_cpu_ms = (time.process_time() - token_cpu_started) * 1000
-        logger.info(
+        logger.warning(
             'login_timing result=success algorithm=%s iterations=%s '
             'lookup_ms=%.2f lookup_cpu_ms=%.2f hash_ms=%.2f hash_cpu_ms=%.2f '
             'token_ms=%.2f token_cpu_ms=%.2f total_ms=%.2f total_cpu_ms=%.2f '
